@@ -5,3 +5,5 @@ data/audio/*
 .DS_Store
 .env
 *.tmp
+data/transcripts/*
+!data/transcripts/.gitkeep

@@ -8,3 +8,5 @@ data/audio/*
 *.tmp
 data/transcripts/*
 !data/transcripts/.gitkeep
+data/faiss_index/*
+!data/faiss_index/.gitkeep

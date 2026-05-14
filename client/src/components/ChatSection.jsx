@@ -28,16 +28,21 @@ function Avatar({ type }) {
 }
 
 /* ────── Source Chip ────── */
-function SourceChip({ timestamp, preview, onSeek }) {
+function SourceChip({ timestamp, preview, url, title, video_idx, onSeek, videoCount }) {
+  const showBadge = videoCount > 1 && video_idx !== undefined
   return (
-    <button className="src-chip" title={preview} onClick={() => onSeek(timestamp)}>
+    <button className="src-chip" title={`${title || 'Video'}\n${preview}`}
+            onClick={() => onSeek(timestamp, url)}>
+      {showBadge && (
+        <span className="src-vid">V{video_idx + 1}</span>
+      )}
       <span className="src-ts">
         <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
           <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
         </svg>
         {timestamp}
       </span>
-      <span className="src-pv">{preview.slice(0, 45)}{preview.length > 45 ? '...' : ''}</span>
+      <span className="src-pv">{preview.slice(0, 45)}{preview.length > 45 ? '…' : ''}</span>
     </button>
   )
 }
@@ -70,7 +75,7 @@ function ResponseLoader() {
 }
 
 /* ────── Message Bubble ────── */
-function MessageBubble({ msg, onSeek }) {
+function MessageBubble({ msg, onSeek, videoCount }) {
   const isUser = msg.role === 'user'
 
   const html = useMemo(() => {
@@ -92,7 +97,7 @@ function MessageBubble({ msg, onSeek }) {
         {!isUser && !msg.streaming && msg.sources && msg.sources.length > 0 && (
           <div className="src-row">
             {msg.sources.map((s, i) => (
-              <SourceChip key={i} {...s} onSeek={onSeek} />
+              <SourceChip key={i} {...s} onSeek={onSeek} videoCount={videoCount} />
             ))}
           </div>
         )}
@@ -102,7 +107,7 @@ function MessageBubble({ msg, onSeek }) {
 }
 
 /* ────── Main ChatSection ────── */
-export default function ChatSection({ messages, onAsk, onSeek, onClear, disabled, isAsking, width }) {
+export default function ChatSection({ messages, onAsk, onSeek, onClear, disabled, isAsking, width, videoCount = 1 }) {
   const [input, setInput] = useState('')
   const bottomRef = useRef(null)
 
@@ -157,7 +162,7 @@ export default function ChatSection({ messages, onAsk, onSeek, onClear, disabled
         {messages.map((msg, i) => {
           // Don't render the empty bot message placeholder; show loader instead
           if (msg.role === 'bot' && !msg.content && msg.streaming) return null
-          return <MessageBubble key={i} msg={msg} onSeek={onSeek} />
+          return <MessageBubble key={i} msg={msg} onSeek={onSeek} videoCount={videoCount} />
         })}
 
         {showLoader && <ResponseLoader />}

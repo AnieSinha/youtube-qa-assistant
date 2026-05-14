@@ -54,6 +54,21 @@ def generate_transcript(audio_path: str) -> tuple[str, list[dict]]:
         base_url="https://api.groq.com/openai/v1",
     )
 
+    # Groq Whisper API has a 25 MB file size limit. Re-encode to mono 16kHz
+    # mp3 if needed — this is always smaller and within the limit.
+    file_size_mb = os.path.getsize(audio_path) / (1024 * 1024)
+    print(f"[whisper] Audio file: {os.path.basename(audio_path)} ({file_size_mb:.1f} MB)")
+    if file_size_mb > 24:
+        import subprocess
+        compressed_path = audio_path + "_compressed.mp3"
+        subprocess.run(
+            ["ffmpeg", "-y", "-i", audio_path, "-ar", "16000", "-ac", "1",
+             "-b:a", "32k", compressed_path],
+            check=True, capture_output=True,
+        )
+        audio_path = compressed_path
+        print(f"[whisper] Compressed to {os.path.getsize(audio_path)/(1024*1024):.1f} MB")
+
     print("[whisper] Transcribing via Groq API (whisper-large-v3-turbo)...")
 
     with open(audio_path, "rb") as audio_file:

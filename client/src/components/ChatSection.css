@@ -224,6 +224,15 @@
 }
 .src-pv { overflow: hidden; text-overflow: ellipsis; }
 
+.src-vid {
+  font-size: 9px; font-weight: 800;
+  padding: 1px 5px;
+  background: rgba(139,92,246,0.18);
+  color: var(--accent-2);
+  border-radius: 999px;
+  flex-shrink: 0;
+}
+
 /* Input */
 .chat-foot {
   padding: 14px 18px 18px;

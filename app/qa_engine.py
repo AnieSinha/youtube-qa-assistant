@@ -17,12 +17,14 @@ _client = OpenAI(
 #   "llama-3.1-8b-instant"          — fast, lightweight  (replaces llama3-8b-8192)
 #   "llama-3.3-70b-versatile"       — more powerful      (replaces llama3-70b-8192)
 #   "meta-llama/llama-4-scout-17b-16e-instruct" — large context
-MODEL = "llama-3.1-8b-instant"
+MODEL = "llama-3.3-70b-versatile"
 
 _SYSTEM_PROMPT = (
-    "You are a helpful assistant that answers questions strictly based on the "
-    "provided video transcript context. If the answer cannot be found in the "
-    "context, say so clearly — do not make up information."
+    "You are a helpful assistant that answers questions based on a YouTube video transcript. "
+    "Use the provided transcript context to give detailed, accurate answers. "
+    "Synthesize information from all provided chunks to form a complete answer. "
+    "If the transcript mentions related topics, include them. "
+    "If the answer truly cannot be found in the context at all, say so clearly."
 )
 
 
@@ -50,14 +52,15 @@ def answer_question(question: str, retrieved_chunks: list[dict]) -> str:
     context = "\n\n".join(context_parts)
 
     user_message = (
-        f"Context from video transcript:\n\n{context}\n\n"
+        f"Video transcript context:\n\n{context}\n\n"
         f"Question: {question}\n\n"
-        "Please provide a clear, concise answer based only on the context above."
+        "Provide a thorough answer using the transcript context above. "
+        "Include specific details, features, or examples mentioned in the video."
     )
 
     response = _client.chat.completions.create(
         model=MODEL,
-        temperature=0.2,
+        temperature=0.3,
         messages=[
             {"role": "system", "content": _SYSTEM_PROMPT},
             {"role": "user",   "content": user_message},

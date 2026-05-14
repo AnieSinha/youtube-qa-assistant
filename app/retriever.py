@@ -1,9 +1,6 @@
 import numpy as np
-from sentence_transformers import SentenceTransformer
+from embeddings import get_model
 from vector_store import load_vector_store
-
-# Reuse the same model used during embedding generation
-_model = SentenceTransformer("all-MiniLM-L6-v2")
 
 
 def retrieve_chunks(
@@ -31,8 +28,8 @@ def retrieve_chunks(
     if index is None or chunks is None:
         index, chunks = load_vector_store()
 
-    # Embed the query
-    query_embedding = _model.encode([query]).astype(np.float32)
+    # Embed the query — reuses the same singleton model from embeddings.py
+    query_embedding = get_model().encode([query]).astype(np.float32)
 
     # Search FAISS index
     distances, indices = index.search(query_embedding, top_k)

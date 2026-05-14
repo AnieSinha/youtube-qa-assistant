@@ -18,6 +18,9 @@ scikit-learn>=1.8.0
 # ===== Text Processing =====
 langchain-text-splitters>=0.3.0
 
+# ===== YouTube Transcript (bot-detection-free fallback) =====
+youtube-transcript-api>=0.6.0
+
 # ===== Utilities =====
 requests>=2.30.0
 tqdm>=4.65.0

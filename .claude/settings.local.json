@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(Get-ChildItem d:\\\\Navikenz\\\\Project\\\\Micro-project-5 -Depth 0)",
+      "PowerShell(Get-ChildItem \"d:\\\\Navikenz\\\\Project\\\\Micro-project-5\" | Where-Object { $_.Name -notin @\\('venv','.git'\\) } | Format-Table Name, Attributes -AutoSize)",
+      "PowerShell(New-Item -ItemType Directory -Force \"d:\\\\Navikenz\\\\Project\\\\Micro-project-5\\\\.github\\\\workflows\")",
+      "PowerShell(az containerapp revision list --name tubeai-app --resource-group rg_internship -o table)",
+      "PowerShell(az acr repository show-tags --name youtubai --repository tubeai --orderby time_desc --top 1 -o tsv)",
+      "PowerShell(az acr repository show --name youtubai --image tubeai:latest --query digest -o tsv)",
+      "PowerShell(python run.py)",
+      "PowerShell(Get-NetTCPConnection -LocalPort 8000 -State Listen | Select-Object -ExpandProperty OwningProcess | ForEach-Object { Get-Process -Id $_ })",
+      "PowerShell(Stop-Process -Id 8848 -Force)"
+    ]
+  }
+}

@@ -216,6 +216,51 @@ class QuestionRequest(BaseModel):
 # ------------------------------------------------------------------
 # Background pipeline worker
 # ------------------------------------------------------------------
+def _youtube_transcript_fallback(url: str, cookies_file: str | None = None) -> tuple[str, list] | None:
+    """
+    Try fetching YouTube's own captions via youtube-transcript-api.
+    Returns (transcript_text, segments) or None if unavailable.
+    Works from any IP with no bot detection issues.
+    """
+    try:
+        import re
+        from youtube_transcript_api import YouTubeTranscriptApi, NoTranscriptFound, TranscriptsDisabled
+        m = re.search(r'(?:v=|youtu\.be/)([A-Za-z0-9_-]{11})', url)
+        if not m:
+            return None
+        video_id = m.group(1)
+        
+        kwargs = {"languages": ["en", "en-US", "en-GB", "hi", "a.en"]}
+        if cookies_file:
+            kwargs["cookies"] = cookies_file
+            
+        raw = YouTubeTranscriptApi.get_transcript(video_id, **kwargs)
+        text = " ".join(item["text"] for item in raw)
+        segments = [{"start": item["start"], "end": item["start"] + item["duration"], "text": item["text"]} for item in raw]
+        print(f"[transcript-api] Got {len(segments)} segments from YouTube captions.")
+        return text, segments
+    except Exception as exc:
+        print(f"[transcript-api] Not available ({exc}), falling back to yt-dlp.")
+        return None
+
+
+def _write_cookies_file() -> str | None:
+    """Write YOUTUBE_COOKIES env var (base64-encoded cookies.txt) to a temp file."""
+    import base64, tempfile
+    raw = os.environ.get("YOUTUBE_COOKIES", "").strip()
+    if not raw:
+        return None
+    try:
+        content = base64.b64decode(raw).decode("utf-8")
+    except Exception:
+        content = raw  # already plain text
+    tmp = tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False)
+    tmp.write(content)
+    tmp.flush()
+    tmp.close()
+    return tmp.name
+
+
 def _pipeline_worker(urls: list[str]) -> None:
     try:
         from yt_dlp import YoutubeDL
@@ -232,6 +277,8 @@ def _pipeline_worker(urls: list[str]) -> None:
                 except OSError:
                     pass
 
+        cookies_file = _write_cookies_file()
+
         all_chunks: list[str]  = []
         all_chunk_meta: list   = []
         all_segments: dict     = {}
@@ -241,35 +288,56 @@ def _pipeline_worker(urls: list[str]) -> None:
         for idx, url in enumerate(urls):
             tag = f"[{idx + 1}/{n}] " if n > 1 else ""
 
-            with _lock:
-                _state["message"] = f"{tag}Downloading audio from YouTube..."
+            # --- Fast path: YouTube captions (no bot detection, no audio download) ---
+            caption_result = _youtube_transcript_fallback(url, cookies_file=cookies_file)
 
-            ydl_opts = {
-                "format":     "bestaudio/best",
-                "outtmpl":    f"data/audio/video_{idx}.%(ext)s",
-                "quiet":      True,
-                "noplaylist": True,
-            }
-            with YoutubeDL(ydl_opts) as ydl:
-                info  = ydl.extract_info(url, download=True)
-                title = info.get("title", f"Video {idx + 1}")
+            if caption_result:
+                transcript, segments = caption_result
+                # Get video title via yt-dlp info-only (no download)
+                with _lock:
+                    _state["message"] = f"{tag}Fetching video info..."
+                try:
+                    ydl_info_opts = {"quiet": True, "noplaylist": True, "skip_download": True,
+                                     "extractor_args": {"youtube": {"player_client": ["tv_embedded", "android"]}}}
+                    if cookies_file:
+                        ydl_info_opts["cookiefile"] = cookies_file
+                    with YoutubeDL(ydl_info_opts) as ydl:
+                        info = ydl.extract_info(url, download=False)
+                        title = info.get("title", f"Video {idx + 1}")
+                except Exception:
+                    title = f"Video {idx + 1}"
+            else:
+                # --- Slow path: download audio + Whisper transcription ---
+                with _lock:
+                    _state["message"] = f"{tag}Downloading audio from YouTube..."
 
-            video_titles[url] = title
+                ydl_opts = {
+                    "format":         "bestaudio/best",
+                    "outtmpl":        f"data/audio/video_{idx}.%(ext)s",
+                    "quiet":          True,
+                    "noplaylist":     True,
+                    "extractor_args": {"youtube": {"player_client": ["tv_embedded", "android", "web"]}},
+                }
+                if cookies_file:
+                    ydl_opts["cookiefile"] = cookies_file
+                with YoutubeDL(ydl_opts) as ydl:
+                    info  = ydl.extract_info(url, download=True)
+                    title = info.get("title", f"Video {idx + 1}")
 
-            # Locate the downloaded file
-            audio_files = sorted(
-                f for f in os.listdir(audio_folder)
-                if f.startswith(f"video_{idx}.") and f != ".gitkeep"
-            )
-            if not audio_files:
-                raise RuntimeError(f"Download produced no audio file for video {idx + 1}.")
-            audio_path = os.path.join(audio_folder, audio_files[0])
+                # Locate the downloaded file
+                audio_files = sorted(
+                    f for f in os.listdir(audio_folder)
+                    if f.startswith(f"video_{idx}.") and f != ".gitkeep"
+                )
+                if not audio_files:
+                    raise RuntimeError(f"Download produced no audio file for video {idx + 1}.")
+                audio_path = os.path.join(audio_folder, audio_files[0])
 
-            with _lock:
-                short_title = title[:40] + ("…" if len(title) > 40 else "")
-                _state["message"] = f"{tag}Transcribing '{short_title}'..."
+                with _lock:
+                    short_title = title[:40] + ("…" if len(title) > 40 else "")
+                    _state["message"] = f"{tag}Transcribing '{short_title}'..."
 
-            transcript, segments = generate_transcript(audio_path)
+                transcript, segments = generate_transcript(audio_path)
             all_segments[url] = segments
 
             video_chunks = chunk_text(transcript)

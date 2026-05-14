@@ -24,8 +24,31 @@ _SYSTEM_PROMPT = (
     "Use the provided transcript context to give detailed, accurate answers. "
     "Synthesize information from all provided chunks to form a complete answer. "
     "If the transcript mentions related topics, include them. "
-    "If the answer truly cannot be found in the context at all, say so clearly."
+    "If the answer truly cannot be found in the context at all, say so clearly. "
+    "Use markdown formatting for your answers: use **bold** for emphasis, "
+    "bullet points for lists, and organize information clearly."
 )
+
+
+def _build_messages(question: str, retrieved_chunks: list[dict]) -> list[dict]:
+    """Build the chat messages list from question and context chunks."""
+    context_parts = [
+        f"[Chunk {i + 1}]:\n{chunk['text']}"
+        for i, chunk in enumerate(retrieved_chunks)
+    ]
+    context = "\n\n".join(context_parts)
+
+    user_message = (
+        f"Video transcript context:\n\n{context}\n\n"
+        f"Question: {question}\n\n"
+        "Provide a thorough answer using the transcript context above. "
+        "Include specific details, features, or examples mentioned in the video."
+    )
+
+    return [
+        {"role": "system", "content": _SYSTEM_PROMPT},
+        {"role": "user",   "content": user_message},
+    ]
 
 
 def answer_question(question: str, retrieved_chunks: list[dict]) -> str:
@@ -44,27 +67,34 @@ def answer_question(question: str, retrieved_chunks: list[dict]) -> str:
     if not retrieved_chunks:
         return "No relevant transcript content was found to answer your question."
 
-    # Build a single context block from the top chunks
-    context_parts = [
-        f"[Chunk {i + 1}]:\n{chunk['text']}"
-        for i, chunk in enumerate(retrieved_chunks)
-    ]
-    context = "\n\n".join(context_parts)
-
-    user_message = (
-        f"Video transcript context:\n\n{context}\n\n"
-        f"Question: {question}\n\n"
-        "Provide a thorough answer using the transcript context above. "
-        "Include specific details, features, or examples mentioned in the video."
-    )
-
     response = _client.chat.completions.create(
         model=MODEL,
         temperature=0.3,
-        messages=[
-            {"role": "system", "content": _SYSTEM_PROMPT},
-            {"role": "user",   "content": user_message},
-        ],
+        messages=_build_messages(question, retrieved_chunks),
     )
 
     return response.choices[0].message.content.strip()
+
+
+def stream_answer(question: str, retrieved_chunks: list[dict]):
+    """
+    Stream an answer token-by-token using Groq's streaming API.
+
+    Yields:
+        Individual content tokens (strings) as they arrive.
+    """
+    if not retrieved_chunks:
+        yield "No relevant transcript content was found to answer your question."
+        return
+
+    stream = _client.chat.completions.create(
+        model=MODEL,
+        temperature=0.3,
+        messages=_build_messages(question, retrieved_chunks),
+        stream=True,
+    )
+
+    for chunk in stream:
+        delta = chunk.choices[0].delta
+        if delta.content:
+            yield delta.content

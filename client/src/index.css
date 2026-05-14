@@ -1,0 +1,78 @@
+/* ================================================================
+   Global Reset & Design Tokens — Dual Theme
+   ================================================================ */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+/* ===== Dark Theme (default) ===== */
+:root, [data-theme="dark"] {
+  --bg-0:       #08080c;
+  --bg-1:       #0e0e14;
+  --bg-2:       #15151f;
+  --bg-3:       #1c1c2b;
+  --bg-4:       #242438;
+  --bg-glass:   rgba(14,14,20,0.85);
+
+  --border-1:   rgba(255,255,255,0.04);
+  --border-2:   rgba(255,255,255,0.08);
+  --border-3:   rgba(255,255,255,0.14);
+  --border-glow:rgba(139,92,246,0.3);
+
+  --text-1:     #f4f4f8;
+  --text-2:     #b0b0c8;
+  --text-3:     #7070a0;
+  --text-4:     #484870;
+
+  --accent:     #8b5cf6;
+  --accent-2:   #a78bfa;
+  --accent-dark:#7c3aed;
+  --accent-glow:rgba(139,92,246,0.12);
+
+  --coral:      #ff6b6b;
+  --teal:       #2dd4bf;
+  --success:    #34d399;
+  --warning:    #fbbf24;
+  --error:      #f87171;
+
+  --nav-h:      60px;
+  --radius:     16px;
+  --radius-md:  12px;
+  --radius-sm:  8px;
+  --radius-xs:  6px;
+  --font:       'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+  --mono:       'JetBrains Mono', 'Fira Code', 'Consolas', monospace;
+}
+
+/* ===== Light Theme ===== */
+[data-theme="light"] {
+  --bg-0:       #f5f5f7;
+  --bg-1:       #ffffff;
+  --bg-2:       #f0f0f4;
+  --bg-3:       #e8e8ee;
+  --bg-4:       #dddde6;
+  --bg-glass:   rgba(255,255,255,0.88);
+
+  --border-1:   rgba(0,0,0,0.04);
+  --border-2:   rgba(0,0,0,0.08);
+  --border-3:   rgba(0,0,0,0.14);
+  --border-glow:rgba(139,92,246,0.25);
+
+  --text-1:     #1a1a2e;
+  --text-2:     #3a3a5c;
+  --text-3:     #6a6a8e;
+  --text-4:     #9a9ab8;
+
+  --accent:     #7c3aed;
+  --accent-2:   #6d28d9;
+  --accent-dark:#5b21b6;
+  --accent-glow:rgba(124,58,237,0.1);
+}
+
+html, body, #root {
+  height: 100%;
+  font-family: var(--font);
+  background: var(--bg-0);
+  color: var(--text-1);
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  transition: background 0.3s ease, color 0.3s ease;
+}

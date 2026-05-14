@@ -1,0 +1,54 @@
+.overlay {
+  position: absolute; inset: 0;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(8,8,12,0.82);
+  backdrop-filter: blur(10px);
+  z-index: 50;
+  animation: fadeIn 0.3s ease;
+}
+
+@keyframes fadeIn { from{opacity:0} to{opacity:1} }
+
+.overlay-card {
+  display: flex; align-items: center; gap: 24px;
+  padding: 28px 36px;
+  background: var(--bg-2);
+  border: 1px solid var(--border-2);
+  border-radius: var(--radius);
+  box-shadow: 0 20px 60px rgba(0,0,0,0.5), 0 0 50px var(--accent-glow);
+}
+
+.ring-wrap { position: relative; width: 56px; height: 56px; flex-shrink: 0; }
+
+.ring { width: 100%; height: 100%; transform: rotate(-90deg); }
+
+.ring-bg { fill: none; stroke: var(--border-2); stroke-width: 4; }
+
+.ring-fg {
+  fill: none; stroke: var(--accent); stroke-width: 4;
+  stroke-linecap: round;
+  stroke-dasharray: 163.4;
+  animation: spin 1.8s ease-in-out infinite;
+}
+
+@keyframes spin {
+  0%  { stroke-dashoffset: 163.4; }
+  50% { stroke-dashoffset: 40; }
+  100%{ stroke-dashoffset: 163.4; }
+}
+
+.ring-pulse {
+  position: absolute; top: 50%; left: 50%;
+  width: 16px; height: 16px;
+  transform: translate(-50%,-50%);
+  background: var(--accent); border-radius: 50%;
+  animation: pGlow 1.8s ease-in-out infinite;
+}
+
+@keyframes pGlow {
+  0%,100% { opacity: 0.4; box-shadow: 0 0 8px var(--accent); }
+  50%     { opacity: 1;   box-shadow: 0 0 20px var(--accent); }
+}
+
+.overlay-info h3 { font-size: 15px; font-weight: 700; margin-bottom: 4px; }
+.overlay-info p  { font-size: 13px; color: var(--text-3); max-width: 240px; }

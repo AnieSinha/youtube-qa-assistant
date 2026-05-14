@@ -1,5 +1,5 @@
 """
-Startup script for the YouTube Q&A Assistant API.
+Startup script for the TubeAI — YouTube AI Assistant.
 
 Usage:
     python run.py              # default: http://localhost:8000
@@ -30,13 +30,13 @@ import argparse
 import uvicorn
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="YouTube Q&A Assistant API")
+    parser = argparse.ArgumentParser(description="TubeAI — YouTube AI Assistant")
     parser.add_argument("--host", default="0.0.0.0", help="Host to bind (default: 0.0.0.0)")
     parser.add_argument("--port", type=int, default=8000, help="Port to listen on (default: 8000)")
     parser.add_argument("--reload", action="store_true", help="Enable auto-reload for development")
     args = parser.parse_args()
 
-    print(f"\n  YouTube Q&A Assistant")
+    print(f"\n  TubeAI — YouTube AI Assistant")
     print(f"  API  ->  http://localhost:{args.port}")
     print(f"  UI   ->  http://localhost:{args.port}/\n")
 

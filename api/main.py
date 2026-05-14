@@ -1,18 +1,20 @@
 """
-YouTube Q&A Assistant — FastAPI Backend
+TubeAI — YouTube AI Assistant -- FastAPI Backend
 ========================================
 Wraps the existing CLI pipeline (app/) behind a REST API.
 
 Endpoints:
-  POST /api/process  — start the ingestion pipeline for a YouTube URL
-  GET  /api/status   — poll current pipeline state
-  POST /api/ask      — answer a question using the processed transcript
-  GET  /health       — health check
-  GET  /             — serve the frontend SPA
+  POST /api/process      -- start the ingestion pipeline for a YouTube URL
+  GET  /api/status       -- poll current pipeline state
+  POST /api/ask          -- answer a question (JSON response)
+  POST /api/ask/stream   -- answer a question (SSE streaming response)
+  GET  /health           -- health check
+  GET  /                 -- serve the frontend SPA
 """
 
 import os
 import sys
+import json
 import logging
 import threading
 from contextlib import asynccontextmanager
@@ -37,7 +39,7 @@ os.chdir(_PROJECT_ROOT)
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from dotenv import load_dotenv
@@ -50,7 +52,7 @@ from chunker import chunk_text
 from embeddings import create_embeddings
 from vector_store import build_vector_store, load_vector_store
 from retriever import retrieve_chunks
-from qa_engine import answer_question
+from qa_engine import answer_question, stream_answer
 from timestamp_mapper import get_timestamps_for_chunks
 
 
@@ -69,7 +71,7 @@ _lock = threading.Lock()
 
 
 # ------------------------------------------------------------------
-# Background model warm-up — loads ML models while the server is
+# Background model warm-up -- loads ML models while the server is
 # already accepting requests, so the first /api/process isn't slow.
 # ------------------------------------------------------------------
 def _warm_up_models():
@@ -113,8 +115,8 @@ async def lifespan(app: FastAPI):
 # App setup
 # ------------------------------------------------------------------
 app = FastAPI(
-    title="YouTube Q&A Assistant",
-    version="1.0.0",
+    title="TubeAI — YouTube AI Assistant",
+    version="2.0.0",
     lifespan=lifespan,
 )
 
@@ -158,12 +160,12 @@ def _pipeline_worker(url: str) -> None:
         audio_path = os.path.join(audio_folder, audio_files[0])
 
         with _lock:
-            _state["message"] = "Transcribing audio with Whisper (may take a few minutes)..."
+            _state["message"] = "Transcribing audio with Whisper..."
 
         transcript, _ = generate_transcript(audio_path)
 
         with _lock:
-            _state["message"] = "Chunking transcript and building vector index..."
+            _state["message"] = "Building vector index..."
 
         chunks = chunk_text(transcript)
         embeddings = create_embeddings(chunks)
@@ -218,8 +220,8 @@ async def get_status():
 
 
 @app.post("/api/ask")
-async def ask_question(req: QuestionRequest):
-    """Answer a question using the processed video transcript."""
+async def ask_question_json(req: QuestionRequest):
+    """Answer a question using the processed video transcript (JSON response)."""
     with _lock:
         status = _state["status"]
         index = _state["index"]
@@ -233,7 +235,6 @@ async def ask_question(req: QuestionRequest):
     if not req.question.strip():
         raise HTTPException(status_code=422, detail="Question cannot be empty.")
 
-    # Retrieve top 5 chunks for richer context (was top_k=3)
     retrieved = retrieve_chunks(req.question, index=index, chunks=chunks, top_k=5)
     if not retrieved:
         return {"answer": "No relevant content found for your question.", "sources": []}
@@ -252,17 +253,84 @@ async def ask_question(req: QuestionRequest):
     return {"answer": answer, "sources": sources}
 
 
+@app.post("/api/ask/stream")
+async def ask_question_stream(req: QuestionRequest):
+    """
+    Answer a question with Server-Sent Events (SSE) streaming.
+
+    Event types:
+      - "token"   : { "content": "..." }   — a chunk of the answer
+      - "sources" : [ {timestamp, preview}, ... ]  — source references
+      - "done"    : {}                     — stream complete
+      - "error"   : { "detail": "..." }    — error occurred
+    """
+    with _lock:
+        status = _state["status"]
+        index = _state["index"]
+        chunks = _state["chunks"]
+
+    if status != "ready":
+        async def error_stream():
+            yield f"event: error\ndata: {json.dumps({'detail': 'No video is ready.'})}\n\n"
+        return StreamingResponse(error_stream(), media_type="text/event-stream")
+
+    if not req.question.strip():
+        async def error_stream():
+            yield f"event: error\ndata: {json.dumps({'detail': 'Question cannot be empty.'})}\n\n"
+        return StreamingResponse(error_stream(), media_type="text/event-stream")
+
+    retrieved = retrieve_chunks(req.question, index=index, chunks=chunks, top_k=5)
+
+    if not retrieved:
+        async def empty_stream():
+            yield f"event: token\ndata: {json.dumps({'content': 'No relevant content found for your question.'})}\n\n"
+            yield f"event: sources\ndata: {json.dumps([])}\n\n"
+            yield "event: done\ndata: {}\n\n"
+        return StreamingResponse(empty_stream(), media_type="text/event-stream")
+
+    # Compute sources up front
+    timestamps = get_timestamps_for_chunks(retrieved)
+    sources = [
+        {
+            "timestamp": ts,
+            "preview": chunk["text"][:200].replace("\n", " "),
+        }
+        for chunk, ts in zip(retrieved, timestamps)
+    ]
+
+    def generate():
+        try:
+            # Send sources first so the UI can display them alongside the answer
+            yield f"event: sources\ndata: {json.dumps(sources)}\n\n"
+
+            # Stream answer tokens
+            for token in stream_answer(req.question, retrieved):
+                yield f"event: token\ndata: {json.dumps({'content': token})}\n\n"
+
+            yield "event: done\ndata: {}\n\n"
+        except Exception as exc:
+            yield f"event: error\ndata: {json.dumps({'detail': str(exc)})}\n\n"
+
+    return StreamingResponse(generate(), media_type="text/event-stream")
+
+
 @app.get("/health")
 async def health_check():
-    return {"status": "ok", "service": "YouTube Q&A Assistant"}
+    return {"status": "ok", "service": "TubeAI"}
 
 
 # ------------------------------------------------------------------
-# Serve the frontend SPA
+# Serve the frontend SPA (supports both dev /static/ and Vite /assets/)
 # ------------------------------------------------------------------
 _FRONTEND_DIR = os.path.join(_PROJECT_ROOT, "frontend")
 
 if os.path.isdir(_FRONTEND_DIR):
+    # Vite builds to /assets/ — serve those
+    _assets_dir = os.path.join(_FRONTEND_DIR, "assets")
+    if os.path.isdir(_assets_dir):
+        app.mount("/assets", StaticFiles(directory=_assets_dir), name="assets")
+
+    # Legacy /static/ mount for backward compat
     app.mount("/static", StaticFiles(directory=_FRONTEND_DIR), name="static")
 
     @app.get("/")

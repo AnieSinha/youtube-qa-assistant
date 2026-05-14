@@ -63,7 +63,7 @@ def run_pipeline(url: str) -> tuple[list[str], object]:
 def qa_loop(chunks: list[str], index) -> None:
     """Interactive question-answering loop."""
     print("\n" + "=" * 60)
-    print("  YouTube Q&A Assistant — Ask anything about the video!")
+    print("  TubeAI — Ask anything about the video!")
     print("  Type 'quit' or 'exit' to stop.")
     print("=" * 60)
 
